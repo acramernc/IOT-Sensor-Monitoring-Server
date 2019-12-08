@@ -6,7 +6,6 @@ PORT = 80
 password = "pass123"
 
 def connect():
-    password = ""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))
         print("Connection Successful!")
@@ -21,7 +20,7 @@ def connect():
             print("8. Quit")
             cmd = input("What would you like to do (1-8)?: ")
             if int(cmd) == 1:
-                #List hardware available?
+                print("Proximity Sensor : D4 \n DHT : D2 \n External LED : D1 \n Alert LED : D5")
                 break
             elif int(cmd) == 2:
                 #Query Sensor
@@ -42,7 +41,7 @@ def connect():
                 actuatorValue = input("Enter value of actuator: ")
                 passwordGuess = input("Please enter password to complete: ")
                 if password == passwordGuess:
-                    if actuator == 1:
+                    if actuator == "1":
                         request = 'PUT /led/' + actuatorValue + ' HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
                     else:
                         request = 'PUT /buzz/' + actuatorValue + ' HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
@@ -102,5 +101,5 @@ if __name__== "__main__":
     t1.start()
 
     t1.join()
-    t2.join()
+    #t2.join()
 

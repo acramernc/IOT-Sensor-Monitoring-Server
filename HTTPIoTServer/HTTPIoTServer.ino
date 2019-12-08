@@ -14,7 +14,7 @@ int PIN_PROX_SENSOR = D4;   // proximity sensor
 int PIN_DHT_SENSOR = D2;    // analog humidity and temperature sensor
 // actuator pin assignments
 int PIN_LED_BUILTIN = D0;   // on-board LED output
-int PIN_LED_OUT = D1;       // external LED output 
+int PIN_LED_OUT = D1;       // external LED output
 int PIN_ALERT_OUT = D5;    //Red alert led
 
 // Replace with your network credentials
