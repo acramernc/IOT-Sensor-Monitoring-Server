@@ -9,10 +9,13 @@
 #include <ESP8266WiFi.h> // Library for Wi-Fi connection
 #include "DHT.h"          // Library for DHT sensor
 
-int PIN_DIGITAL_SENSOR = D3;
-int PIN_ANALOG_SENSOR = D2;
-int PIN_LED_BUILTIN = D0;
-int PIN_LED_OUT = D1;
+// sensor pin assignments
+int PIN_PROX_SENSOR = D4;   // proximity sensor
+int PIN_DHT_SENSOR = D2;    // analog humidity and temperature sensor
+// actuator pin assignments
+int PIN_LED_BUILTIN = D0;   // on-board LED output
+int PIN_LED_OUT = D1;       // external LED output 
+int PIN_ALERT_OUT = D5;    //Red alert led
 
 // Replace with your network credentials
 const char* ssid     = "GCC";
@@ -22,10 +25,11 @@ const char* password = "";
 WiFiServer server(80);
 
 // Initialize DHT sensor
-DHT dht(PIN_ANALOG_SENSOR, DHT11);
+DHT dht(PIN_DHT_SENSOR, DHT11);
 
 // State variables
 bool ledState = LOW;
+bool alertState = LOW;
 
 String outputIntState = "off";
 String outputExtState = "off";
@@ -39,12 +43,18 @@ void setup() {
   delay(1000);
   
   // Task 2: Configure pins as inputs & outputs, and set outputs to default values
-  pinMode(PIN_DIGITAL_SENSOR, INPUT);
-  pinMode(PIN_ANALOG_SENSOR, INPUT);
-  pinMode(PIN_LED_BUILTIN, OUTPUT);
-  pinMode(PIN_LED_OUT, OUTPUT);
-  digitalWrite(PIN_LED_OUT, LOW);
-  ledState = LOW;
+  //  sensor pin assignments
+  pinMode(PIN_DHT_SENSOR, INPUT_PULLUP);    // analog humidity and temperature sensor
+  pinMode(PIN_PROX_SENSOR, INPUT);          // proximity sensor
+  //  actuator pin assignments
+  pinMode(PIN_LED_BUILTIN, OUTPUT);         // on-board LED output
+  pinMode(PIN_LED_OUT, OUTPUT);             // external LED output
+  pinMode(PIN_ALERT_OUT, OUTPUT);           //red alert led
+  //   initialize actuator values
+  ledState = HIGH;                             // external LED state
+  digitalWrite(PIN_LED_BUILTIN, LOW);         // on-board LED output
+  digitalWrite(PIN_LED_OUT, ledState);        // external LED output
+  digitalWrite(PIN_ALERT_OUT, alertState);      //Red alert led
 
   // Task 3: Start the analog DHT sensor
   dht.begin();
@@ -80,21 +90,22 @@ void setup() {
 // LOOP FUNCTION
 void loop(){
 
-  // Variable to store the HTTP request
-  String header;
   // Task 1: Listen for client
   WiFiClient client = server.available();   // Listen for incoming clients
   Serial.println("Waiting for client connection.");
-  
+
   // Task 2: Connect to client and read message from client
+  String msgServerReceived; 
+  String msgServerSent;
   if (client) {                             // If a new client connects,
     Serial.println("Client connection established");          // print a message out in the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
     while (client.connected()) {            // loop while the client's connected
+
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
-        header += c;
+        msgServerReceived += c;
 
         // End of HTTP message
         if (c == '\n') {                    // if the byte is a newline character
@@ -103,56 +114,181 @@ void loop(){
           if (currentLine.length() == 0) {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
             // and a content-type so the client knows what's coming, then a blank line:
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println("Connection: close");
-            client.println();
+            msgServerSent += "HTTP/1.1 200 OK\r\nContent-type:text/html\r\nConnection: close\r\n";
 
-            // Message Handler 1: Toggle LED
-            if (header.indexOf("GET /toggleLED") >=0) {
-              ledState = !ledState; // toggle state
-              digitalWrite(PIN_LED_OUT, ledState); 
-              Serial.print("Toggling LED to "); Serial.println(ledState);
-              client.print("Toggling LED to "); client.println(ledState); client.println();
-            }
+            Serial.println("Message received is:");
+            Serial.println(msgServerReceived);
+
+            // Control actuator message handlers 
             
-            // Message Handler 2: Get analog sensor value 
-            else if (header.indexOf("GET /getAnalog") >=0) {
-              int N = 10;                   // number of readings to average
-              float tempValueSum = 0;       // temporary variable for sum of averages
-              for (int ii=0;ii<N;ii++){        // take N readings and average them
-                tempValueSum = tempValueSum + dht.readTemperature(true);  // take each reading
+            // Message Handler 1: Control LED
+            if (msgServerReceived.indexOf("PUT /led") >=0) {
+              
+              // Control option A: Toggle LED
+              if (msgServerReceived.indexOf("/led/toggle") >= 0) {
+                ledState = !ledState; // toggle state
+                digitalWrite(PIN_LED_OUT, ledState); 
+                Serial.print("Toggling LED to "); Serial.println(ledState);
+                msgServerSent += "Toggling LED to ";
+                msgServerSent += ledState;
+                msgServerSent += "\r\n";
               }
-              float tempValue = tempValueSum / N;     // average readings
-              //float tempValue = dht.readTemperature(true); // read 
-              Serial.print("Temperature value is "); Serial.print(tempValue); Serial.println(" deg F, which will be passed to remote client.");
-              client.print("Temperature value is "); client.print(tempValue); client.println(" deg F"); client.println();
+              
+              // Control option B: Turn LED on regardless of previous state
+              else if (msgServerReceived.indexOf("/led/on") >= 0) {              
+                ledState = HIGH; // force state to HIGH 
+                digitalWrite(PIN_LED_OUT, ledState); 
+                Serial.print("Setting LED to "); Serial.println(ledState);
+                msgServerSent += "Setting LED to ";
+                msgServerSent += ledState; 
+                msgServerSent += "\r\n";
+              }
+                            
+              // Control option C: Turn LED off regardless of previous state
+              else if (msgServerReceived.indexOf("/led/off") >= 0) {              
+                ledState = LOW; // force state to low 
+                digitalWrite(PIN_LED_OUT, ledState); 
+                Serial.print("Setting LED to "); Serial.println(ledState);
+                msgServerSent += "Setting LED to ";
+                msgServerSent += ledState;  
+                msgServerSent += "\r\n";
+              }
+            } // end LED handlers
+
+            //Alert message handler
+            else if (msgServerReceived.indexOf("PUT /alert") >=0){
+                // Control option A: Toggle alert
+              if (msgServerReceived.indexOf("/alert/toggle") >= 0) {
+                alertState = !alertState; // toggle state
+                digitalWrite(PIN_ALERT_OUT, alertState);
+                Serial.print("Toggling alert to "); Serial.println(alertState);
+                msgServerSent += "Toggling alert to ";
+                msgServerSent += alertState;
+                msgServerSent += "\r\n";
+              }
+
+              // Control option B: Turn alert on regardless of previous state
+              else if (msgServerReceived.indexOf("/alert/on") >= 0) {
+                alertState = HIGH; // force state to HIGH
+                digitalWrite(PIN_ALERT_OUT, alertState);
+                Serial.print("Setting alert to "); Serial.println(alertState);
+                msgServerSent += "Setting alert to ";
+                msgServerSent += alertState;
+                msgServerSent += "\r\n";
+              }
+
+              // Control option C: Turn alert off regardless of previous state
+              else if (msgServerReceived.indexOf("/alert/off") >= 0) {
+                alertState = LOW; // force state to low
+                digitalWrite(PIN_ALERT_OUT, alertState);
+                Serial.print("Setting alert to "); Serial.println(alertState);
+                msgServerSent += "Setting alert to ";
+                msgServerSent += alertState;
+                msgServerSent += "\r\n";
+              }
             }
-            
-            // Message Handler 3: Get digital sensor value
-            else if (header.indexOf("GET /getDigital") >=0) {
-              int sensorValue = !digitalRead(PIN_DIGITAL_SENSOR); // read 
-              Serial.print("Digital sensor value is "); Serial.print(sensorValue); Serial.println(", which will be passed to remote client."); 
-              client.print("Digital sensor value is "); client.println(sensorValue); client.println();
-            }
+
+            // Monitor sensor message handlers
+
+            // Message Handler 3: Get sensor values
+            else if (msgServerReceived.indexOf("GET /sensors") >=0) {
+              
+              // Monitor option A: Retrieve proximity sensor values
+              if (msgServerReceived.indexOf("/sensors/proximity") >= 0) {                
+                int sensorValue = !digitalRead(PIN_PROX_SENSOR); // read 
+                String sensorText;
+                if (sensorValue) {
+                  sensorText = "PRESENT";
+                }
+                else {
+                  sensorText = "NOT PRESENT";
+                }
+                Serial.print("Digital proximity sensor has value "); Serial.print(sensorValue); Serial.print(" and indicates object is "); Serial.print(sensorText); Serial.println(", which will be passed to remote client."); 
+                msgServerSent += "Digital proximity sensor indicates object is ";
+                msgServerSent += sensorText;
+                msgServerSent += "\r\n";
+              }
+
+              // Monitor option D: Retrieve temperature value
+              else if (msgServerReceived.indexOf("/sensors/temperature") >= 0) {                
+                int N = 10;                   // number of readings to average
+                float tempValueSum = 0;       // temporary variable for sum of averages
+                for (int ii=0;ii<N;ii++){        // take N readings and average them
+                  tempValueSum = tempValueSum + dht.readTemperature(true);  // take each reading
+                }
+                float tempValue = tempValueSum / N;     // average readings
+                Serial.print("Temperature value is "); Serial.print(tempValue); Serial.println(" deg F, which will be passed to remote client.");
+                msgServerSent += "Temperature value is ";
+                msgServerSent += tempValue;
+                msgServerSent += " deg F\r\n";
+              }
+
+              // Monitor option E: Retrieve humidity value
+              else if (msgServerReceived.indexOf("/sensors/humidity") >= 0) {                
+                int N = 10;                   // number of readings to average
+                float humidValueSum = 0;       // temporary variable for sum of averages
+                for (int ii=0;ii<N;ii++){        // take N readings and average them
+                  humidValueSum = humidValueSum + dht.readHumidity();  // take each reading
+                }
+                float humidValue = humidValueSum / N;     // average readings
+                Serial.print("Humidity value is "); Serial.print(humidValue); Serial.println(" %, which will be passed to remote client.");
+                msgServerSent += "Humidity value is ";
+                msgServerSent += humidValue;
+                msgServerSent += " %\r\n";
+              }
+
+              // Monitor option F: Retrieve all values, and return them in a JSON string
+              else {
+                // read digital sensors
+                int proxSensorValue = !digitalRead(PIN_PROX_SENSOR); // read 
+                //int touchSensorValue = digitalRead(PIN_TOUCH_SENSOR); // read
+                //int lightSensorValue = !digitalRead(PIN_LIGHT_SENSOR); // read
+                // read analog sensors
+                int N = 10;                   // number of readings to average
+                float tempValueSum = 0;       // temporary variable for sum of averages
+                float humidValueSum = 0;       // temporary variable for sum of averages
+                for (int ii=0;ii<N;ii++){        // take N readings and average them
+                  tempValueSum = tempValueSum + dht.readTemperature(true);  // take each reading
+                  humidValueSum = humidValueSum + dht.readHumidity();  // take each reading
+                }
+                float tempSensorValue = tempValueSum / N;     // average readings
+                float humidSensorValue = humidValueSum / N;     // average readings
+                // construct JSON string
+                char sensorString[100];
+                char tempString[10];
+                char humidString[10];
+                dtostrf(tempSensorValue,4,2,tempString);
+                dtostrf(humidSensorValue,4,1,humidString);
+                sprintf(sensorString, "{ \"proximity\": %i, \"temperature (F)\": %s, \"humidity (%)\": %s }", proxSensorValue,tempString,humidString);
+                Serial.println("Sensor value JSON is as follows:"); Serial.println(sensorString); Serial.println();
+                msgServerSent += "Sensor values are as follows:";
+                msgServerSent += sensorString;
+                msgServerSent += "\r\n";
+              }
+              
+            } // end sensor monitoring handlers
             
             // Message Handler 4: Quit
-            else if (header.indexOf("GET /quit") >0 ) {
+            else if (msgServerReceived.indexOf("GET /quit") >0 ) {
               Serial.println("Disconnecting at client request."); 
-              client.println("Disconnecting."); client.println();
+              msgServerSent += "Disconnecting.\r\n";
               client.stop();
+              break;
             }
-            
-            // Break out of the while loop
-            break;
+
+            client.println(msgServerSent);  // send whole message in one HTTP message
+            msgServerReceived = "";         // clear last HTTP message received to prepare for next message
+            msgServerSent = "";             // prepare new HTTP message 
             
           } else { // if you got a newline, then clear currentLine
             currentLine = "";
           }
+          
         } else if (c != '\r') {  // if you got anything else but a carriage return character,
           currentLine += c;      // add it to the end of the currentLine
         }
       }
+
     }
   }
 
