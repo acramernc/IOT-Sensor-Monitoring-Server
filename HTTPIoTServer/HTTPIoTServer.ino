@@ -101,7 +101,7 @@ void loop(){
     Serial.println("Client connection established");          // print a message out in the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
     while (client.connected()) {            // loop while the client's connected
-
+      //currentLine = "";
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
@@ -114,7 +114,7 @@ void loop(){
           if (currentLine.length() == 0) {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
             // and a content-type so the client knows what's coming, then a blank line:
-            msgServerSent += "HTTP/1.1 200 OK\r\nContent-type:text/html\r\nConnection: close\r\n";
+            msgServerSent = "HTTP/1.1 200 OK\r\nContent-type:text/html\r\nConnection: close\r\n";
 
             Serial.println("Message received is:");
             Serial.println(msgServerReceived);
@@ -278,7 +278,8 @@ void loop(){
 
             client.println(msgServerSent);  // send whole message in one HTTP message
             msgServerReceived = "";         // clear last HTTP message received to prepare for next message
-            msgServerSent = "";             // prepare new HTTP message 
+            msgServerSent = "";             // prepare new HTTP message
+            //currentLine = "";
             
           } else { // if you got a newline, then clear currentLine
             currentLine = "";

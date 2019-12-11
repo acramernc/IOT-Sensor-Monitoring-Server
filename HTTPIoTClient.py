@@ -1,10 +1,10 @@
 #Jake Murphy and Adam Cramer
-#TODO: Test logging, alarms, and queries
 import socket, smtplib, threading, os, time
 
 HOST = input("Enter hostname of server: ")
 PORT = 80
 password = "pass123"
+auth = False
 lock = threading.Lock()
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -23,7 +23,7 @@ def connect():
     global tLog
     global hLog
     global pLog
-    auth = False #has the user entered the password yet
+    global auth #has the user entered the password yet
     #with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
     print("Connection Successful!")
@@ -44,22 +44,26 @@ def connect():
             lock.acquire()
             print("Proximity Sensor : D4 \n DHT : D2 \n External LED : D1 \n Alert LED : D5")
             lock.release()
-            break
         elif int(cmd) == 2:
             #Query Sensor
             lock.acquire()
             sensor = input("Which sensor would you like to query?: ")
             request = 'GET /sensors/' + sensor + ' HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
             s.send(b'' + request.encode())
+            time.sleep(0.1)
             result = s.recv(1024).decode()
+            #print(result)
             result = result.split("close\r\n") #splits HTTP response right before text
+            #print(result) #debugging
             print(result[1])
             lock.release()
+            result = ""
         elif int(cmd) == 3:
             #Query all sensor values
             lock.acquire()
             request = 'GET /sensors/ HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
             s.send(b'' + request.encode())
+            time.sleep(0.1)
             result = s.recv(1024).decode()
             result = result.split("close\r\n")  # splits HTTP response right before text
             print(result[1])
@@ -78,6 +82,7 @@ def connect():
                     request = 'PUT /alert/' + actuatorValue + ' HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
                 lock.acquire()
                 s.send(b'' + request.encode())
+                time.sleep(0.1)
                 result = s.recv(1024).decode()
                 lock.release()
                 if "OK" in result:
@@ -98,6 +103,7 @@ def connect():
                     lock.acquire()
                     request = 'GET /sensors/temperature HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
                     s.send(b'' + request.encode())
+                    time.sleep(0.1)
                     result = s.recv(1024).decode()
                     lock.release()
                     result = result.split("close\r\n")  # splits HTTP response right before text
@@ -111,6 +117,7 @@ def connect():
                     lock.acquire()
                     request = 'GET /sensors/proximity HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
                     s.send(b'' + request.encode())
+                    time.sleep(0.1)
                     result = s.recv(1024).decode()
                     lock.release()
                     result = result.split("close\r\n")  # splits HTTP response right before text
@@ -210,55 +217,68 @@ def entry():
                 #print(result)
                 dataS = result[1].split(" ")
                 #print(dataS)
-                data = dataS[6]
-            else:
-                print("Error in entry alarm")
-                #entry()
+                if len(dataS) > 6:
+                    data = dataS[6]
+                else:
+                    data = "NULL"
+
 
             if "NOT" in data:
                 alarm("Entryway Alarm", "Someone has opened the door")
                 eStop = True
 
 def log():
+    global tLog
+    global hLog
+    global pLog
     while True:
+        time.sleep(5)
         write = False
         msg = "" + time.ctime()
         if tLog:
             lock.acquire()
             request = 'GET /sensors/temperature HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
             s.send(b'' + request.encode())
+            time.sleep(0.1)
             result = s.recv(1024).decode()
             lock.release()
             result = result.split("close\r\n")  # splits HTTP response right before text
-            msg += result[1]
-            write = True
+            if len(result) > 1:
+                msg += result[1]
+                write = True
         if hLog:
             lock.acquire()
             request = 'GET /sensors/humidity HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
             s.send(b'' + request.encode())
+            time.sleep(0.1)
             result = s.recv(1024).decode()
             lock.release()
             result = result.split("close\r\n")  # splits HTTP response right before text
-            msg += result[1]
-            write = True
+            if len(result) > 1:
+                msg += result[1]
+                write = True
+
+
         if pLog:
             lock.acquire()
             request = 'GET /sensors/proximity HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
             s.send(b'' + request.encode())
             result = s.recv(1024).decode()
+            time.sleep(0.1)
             lock.release()
             result = result.split("close\r\n")  # splits HTTP response right before text
-            msg += result[1]
-            write = True
+            if len(result) > 1:
+                msg += result[1]
+                write = True
         if write:
             f = open("log.txt", "a")
-            f.write(msg)
+            f.write(msg + "\n")
             f.close()
 
 
 fThread = threading.Thread(target=fire)
 eThread = threading.Thread(target=entry)
-lThread = threading.Thread(target=entry)
+lThread = threading.Thread(target=log)
 
 fThread.start()
 eThread.start()
