@@ -55,7 +55,8 @@ def connect():
             #print(result)
             result = result.split("close\r\n") #splits HTTP response right before text
             #print(result) #debugging
-            print(result[1])
+            if len(result) > 1:
+                print(result[1])
             lock.release()
             result = ""
         elif int(cmd) == 3:
@@ -66,7 +67,8 @@ def connect():
             time.sleep(0.1)
             result = s.recv(1024).decode()
             result = result.split("close\r\n")  # splits HTTP response right before text
-            print(result[1])
+            if len(result) > 1:
+                print(result[1])
             lock.release()
         elif int(cmd) == 4:
             #Set actuator value
@@ -108,7 +110,8 @@ def connect():
                     result = s.recv(1024).decode()
                     lock.release()
                     result = result.split("close\r\n")  # splits HTTP response right before text
-                    print(result[1])
+                    if len(result) > 1:
+                        print(result[1])
 
                     fStop = False
                 else:
@@ -194,10 +197,16 @@ def fire():
             result = s.recv(1024).decode()
             lock.release()
             result = result.split("close\r\n")  # splits HTTP response right before text
-            #print(result)
-            dataS = result[1].split(" ")
-            #print(dataS)
-            data = float(dataS[3])
+            if len(result) > 1:
+                #print(result)
+                dataS = result[1].split(" ")
+                #print(dataS)
+                if len(dataS > 3):
+                    data = float(dataS[3])
+                else:
+                    data = 0
+            else:
+                data = 0
 
             if data > 200:
                 alarm("FIRE", "A fire has been detected in your home")
@@ -222,6 +231,8 @@ def entry():
                     data = dataS[6]
                 else:
                     data = "NULL"
+            else:
+                data = "NULL"
 
 
             if "NOT" in data:
@@ -235,7 +246,7 @@ def log():
     while True:
         time.sleep(5)
         write = False
-        msg = "" + time.ctime()
+        msg = "" + time.ctime() + " "
         if tLog:
             lock.acquire()
             request = 'GET /sensors/temperature HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
