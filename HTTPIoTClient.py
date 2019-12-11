@@ -76,6 +76,7 @@ def connect():
             if not auth:
                 passwordGuess = input("Please enter password to complete: ")
             if auth or password == passwordGuess:
+                auth = True
                 if actuator == "1":
                     request = 'PUT /led/' + actuatorValue + ' HTTP/1.1\r\nHost: ' + HOST + '\r\n\r\n'
                 else:
@@ -128,7 +129,7 @@ def connect():
                     print("That alarm is already armed")
             else:
                 print("Invalid alarm number")
-        elif int(cmd) == 6: #TODO: add initial querey and add locks
+        elif int(cmd) == 6:
             print("1. Temperature")
             print("2. Humidity")
             print("3. Proximity")
